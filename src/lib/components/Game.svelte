@@ -4,22 +4,58 @@
   import Enemy from './Enemy.svelte';
   import Bullet from './Bullet.svelte';
 
+  const TIME_INTERVAL = 10;
+  let ticks = 0;
+  let playing = true;
   let canvas;
   let player = { x: 175, y: 550 };
   let bullets = [];
   let enemies = [];
   let score = 0;
+  const LEFT = 0;
+  const RIGHT = 1;
+  const STOP = -1;
+  let player_moving = STOP;
+  let enemy_moving = RIGHT;
 
   const createEnemies = () => {
-    for (let i = 0; i < 5; i++) {
-      enemies.push({ x: i * 60, y: 0, alive: true });
+    let num_enemies = 30;
+    let column_width = 60;
+    let row_height = 70;
+    let max_columns = 5;
+    let c = 0;
+    let r = 0;
+    for (let i = 0; i < num_enemies; i++) {
+      enemies.push({ x: c * column_width, y: r * row_height, alive: true });
+      c++;
+      if (c > max_columns) {
+        c = 0;
+        r++;
+      }
     }
   };
 
+  const reverse = () => {
+    if (enemy_moving == LEFT) {
+      enemy_moving = RIGHT;
+    } else if (enemy_moving == RIGHT) {
+      enemy_moving = LEFT;
+    }
+  }
+
   const update = () => {
+    // move player
+    if (player_moving == LEFT && player.x > 10) {
+      player.x -= 10;
+    } else if (player_moving == RIGHT && player.x < 740) {
+      player.x += 10;
+    } else {
+      player_moving = STOP;
+    }
+
     // Update bullet positions
     bullets = bullets.filter(bullet => bullet.y > 0);
-    bullets.forEach(bullet => bullet.y -= 5);
+    bullets.forEach(bullet => bullet.y -= 50);
 
     // Check for collisions
     bullets.forEach(bullet => {
@@ -27,9 +63,42 @@
         if (bullet.x < enemy.x + 50 && bullet.x + 5 > enemy.x && bullet.y < enemy.y + 50 && bullet.y + 10 > enemy.y) {
           enemy.alive = false;
           score += 10;
+          bullet.y = 0;
         }
       });
     });
+
+    // move enemies
+    let enemy_reverse = false;
+    let leftmost = 700;
+    let rightmost = 0;
+    enemies.forEach(enemy => {
+      if (enemy.x < leftmost) {
+        leftmost = enemy.x;
+      }
+      if (enemy.x > rightmost) {
+        rightmost = enemy.x;
+      }
+    });
+    if (leftmost <= 10 || rightmost >= 680) {
+      enemy_moving = enemy_moving == LEFT ? enemy_moving = RIGHT : enemy_moving = LEFT;
+    }
+    enemies.forEach(enemy => {
+      if (enemy_moving == LEFT && !enemy_reverse) {
+        if (enemy.x - 10 > 0) {
+          enemy.x -= 10;
+        } else {
+          enemy_reverse = true;
+        }
+      }
+      if (enemy_moving == RIGHT && !enemy_reverse) {
+        if (enemy.x + 10 < 700) {
+          enemy.x += 10;
+        } else {
+          enemy_reverse = true;
+        }
+      }
+    })
 
     // Remove dead enemies
     enemies = enemies.filter(enemy => enemy.alive);
@@ -40,12 +109,14 @@
   };
 
   const handleKeyDown = (event) => {
-    if (event.key === 'ArrowLeft' && player.x > 0) {
-      player.x -= 10;
-    } else if (event.key === 'ArrowRight' && player.x < 350) {
-      player.x += 10;
+    if (event.key === 'ArrowLeft') {
+      player_moving = LEFT;
+    } else if (event.key === 'ArrowRight') {
+      player_moving = RIGHT;
     } else if (event.key === ' ') {
       shoot();
+    } else if (event.key === 'q') {
+      playing = false;
     }
   };
 
@@ -77,21 +148,24 @@
     ctx.fillText(`Score: ${score}`, 10, 20);
   };
 
-  onMount(() => {
+  const play = () => {
     createEnemies();
-    window.addEventListener('keydown', handleKeyDown);
     const interval = setInterval(() => {
+      if (!playing) {
+        clearInterval(interval);
+      }
       update();
       draw();
     }, 100);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+  };
+
+  onMount(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    play();
   });
 </script>
 
-<canvas bind:this={canvas} width="400" height="600"></canvas>
+<canvas bind:this={canvas} width="800" height="600"></canvas>
 
 <style>
   canvas {
